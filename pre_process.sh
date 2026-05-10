@@ -5,6 +5,13 @@ set -euo pipefail
 arquivo=$1
 genoma_de_ref=$2
 chrom_38="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY,chrM"
+
+chr_vcf="${arquivo}.chr.vcf.gz"
+exchr_vcf="${arquivo}.exChr.vcf.gz"
+norm1_vcf="${arquivo}.norm1.vcf.gz"
+norm2_vcf="${arquivo}.norm2.vcf.gz"
+norm3_vcf="${arquivo}.norm3.vcf.gz"
+norm_tsv="${arquivo}.norm.tsv"
 filter_param='ILEN>51 | ILEN<-51 | ALT~"R" | ALT~"Y" | ALT~"M" | ALT~"K" | ALT~"S" | ALT~"W" | ALT~"H" | ALT~"B" | ALT~"V" | ALT~"D" | ALT~"N" | ALT~"*"'
 query_param='%CHROM\t%POS\t%END\t%REF\t%ALT\t%AF_ESP\t%AF_EXAC\t%AF_TGP\t%ALLELEID\t%CLNDN\t%CLNDNINCL\t%CLNDISDB\t%CLNDISDBINCL\t%CLNHGVS\t%CLNREVSTAT\t%CLNSIG\t%CLNSIGCONF\t%CLNSIGINCL\t%CLNVC\t%CLNVCSO\t%CLNVI\t%DBVARID\t%GENEINFO\t%MC\t%ORIGIN\t%RS\n'
 
@@ -46,13 +53,14 @@ echo -e "1\tchr1\n2\tchr2\n3\tchr3\n4\tchr4\n5\tchr5\n6\tchr6\n7\tchr7\n8\tchr8\
 
 #renomear cromossomos para formato "chr" (Vcf usa 1,2, genoma usa chr1,chr2)
 echo "[4/9] Renomeando cromossomos para formato 'chr'..."
-bcftools annotate --rename-chrs "${HOME}/chrom_map.txt" -O z -o {"$arquivo"}.chr.vcf.gz "$arquivo"
-echo "  -> Cromossomos renomeados: $(basename "$arquivo").chr.vcf.gz"
+bcftools annotate --rename-chrs "${HOME}/chrom_map.txt" -O z -o "$chr_vcf" "$arquivo"
+bcftools index "$chr_vcf"
+echo "  -> Cromossomos renomeados: $(basename "$chr_vcf")"
 
 #removendo cromossomos inválidos para o GRCh38
 echo "[5/9] Filtrando cromossomos válidos (GRCh38)..."
-bcftools view -r "$chrom_38"  -O z -o {"$arquivo"}.exChr.vcf.gz {"$arquivo"}.chr.vcf.gz
-echo "  -> Arquivo filtrado: $(basename "$arquivo").exChr.vcf.gz"
+bcftools view -r "$chrom_38" -O z -o "$exchr_vcf" "$chr_vcf"
+echo "  -> Arquivo filtrado: $(basename "$exchr_vcf")"
 
 #realizando a normalizacao
 echo "[6/9] Normalizando variantes (left-align e decomposição)..."
@@ -61,9 +69,9 @@ bcftools norm \
   -O z \
   -cs \
   -f "$genoma_de_ref" \
-  -o {"$arquivo"}.norm1.vcf.gz \
-  {"$arquivo"}.exChr.vcf.gz
-echo "  -> Normalização concluída: $(basename "$arquivo").norm1.vcf.gz"
+  -o "$norm1_vcf" \
+  "$exchr_vcf"
+echo "  -> Normalização concluída: $(basename "$norm1_vcf")"
 
 #removendo variantes duplicadas
 echo "[7/9] Removendo variantes duplicadas..."
@@ -71,9 +79,9 @@ bcftools norm \
   --no-version \
   -d none \
   -O z \
-  -o {"$arquivo"}.norm2.vcf.gz \
-  {"$arquivo"}.norm1.vcf.gz
-echo "  -> Duplicatas removidas: $(basename "$arquivo").norm2.vcf.gz"
+  -o "$norm2_vcf" \
+  "$norm1_vcf"
+echo "  -> Duplicatas removidas: $(basename "$norm2_vcf")"
 
 #filtrando variantes sem alelo alternativo, sem alelos de referencia e com mais de 50 pares de base
 echo "[8/9] Aplicando filtros de qualidade..."
@@ -81,16 +89,16 @@ bcftools view \
   --no-version \
   --type snps,indels \
   -e "$filter_param" \
-  -O z -o {"$arquivo"}.norm3.vcf.gz \
-  {"$arquivo"}.norm2.vcf.gz
-echo "  -> Filtros aplicados: $(basename "$arquivo").norm3.vcf.gz"
+  -O z -o "$norm3_vcf" \
+  "$norm2_vcf"
+echo "  -> Filtros aplicados: $(basename "$norm3_vcf")"
 
 #criando arquivo TSV a partir do VCF
 echo "[9/9] Convertendo para formato TSV..."
-bcftools query -f "$query_param" {"$arquivo"}.norm3.vcf.gz > {"$arquivo"}.norm.tsv
+bcftools query -f "$query_param" "$norm3_vcf" > "$norm_tsv"
 
-sed -e 's/%3D/=/g' -i {"$arquivo"}.norm.tsv
+sed -e 's/%3D/=/g' -i "$norm_tsv"
 
-echo "  -> Arquivo TSV gerado: $(basename "$arquivo").norm.tsv"
+echo "  -> Arquivo TSV gerado: $(basename "$norm_tsv")"
 echo ""
 echo "=== Pipeline concluído com sucesso! ==="

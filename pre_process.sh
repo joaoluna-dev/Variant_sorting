@@ -41,30 +41,28 @@ else
     echo "  -> Índice do VCF encontrado."
 fi
 
-#removendo cromossomos inválidos para o GRCh38
-echo "[4/9] Filtrando cromossomos válidos (GRCh38)..."
-bcftools view -r "$chrom_38"  -O z -o {"$arquivo"}.exChr.vcf.gz "$arquivo"
-echo "  -> Arquivo filtrado: $(basename "$arquivo").exChr.vcf.gz"
-
 #criar arquivo de mapeamento de cromossomos (formato 'chr')
 echo -e "1\tchr1\n2\tchr2\n3\tchr3\n4\tchr4\n5\tchr5\n6\tchr6\n7\tchr7\n8\tchr8\n9\tchr9\n10\tchr10\n11\tchr11\n12\tchr12\n13\tchr13\n14\tchr14\n15\tchr15\n16\tchr16\n17\tchr17\n18\tchr18\n19\tchr19\n20\tchr20\n21\tchr21\n22\tchr22\nX\tchrX\nY\tchrY\nMT\tchrM" > "${HOME}/chrom_map.txt"
 
 #renomear cromossomos para formato "chr" (Vcf usa 1,2, genoma usa chr1,chr2)
-echo "[5/9] Renomeando cromossomos para formato 'chr'..."
-bcftools annotate --rename-chrs "${HOME}/chrom_map.txt" -O z -o {"$arquivo"}.chr.vcf.gz {"$arquivo"}.exChr.vcf.gz
+echo "[4/9] Renomeando cromossomos para formato 'chr'..."
+bcftools annotate --rename-chrs "${HOME}/chrom_map.txt" -O z -o {"$arquivo"}.chr.vcf.gz "$arquivo"
 echo "  -> Cromossomos renomeados: $(basename "$arquivo").chr.vcf.gz"
+
+#removendo cromossomos inválidos para o GRCh38
+echo "[5/9] Filtrando cromossomos válidos (GRCh38)..."
+bcftools view -r "$chrom_38"  -O z -o {"$arquivo"}.exChr.vcf.gz {"$arquivo"}.chr.vcf.gz
+echo "  -> Arquivo filtrado: $(basename "$arquivo").exChr.vcf.gz"
 
 #realizando a normalizacao
 echo "[6/9] Normalizando variantes (left-align e decomposição)..."
-
-#realizando a normalizacao
 bcftools norm \
   -m -any \
   -O z \
   -cs \
   -f "$genoma_de_ref" \
   -o {"$arquivo"}.norm1.vcf.gz \
-  {"$arquivo"}.chr.vcf.gz
+  {"$arquivo"}.exChr.vcf.gz
 echo "  -> Normalização concluída: $(basename "$arquivo").norm1.vcf.gz"
 
 #removendo variantes duplicadas

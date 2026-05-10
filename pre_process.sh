@@ -12,7 +12,7 @@ query_param='%CHROM\t%POS\t%END\t%REF\t%ALT\t%AF_ESP\t%AF_EXAC\t%AF_TGP\t%ALLELE
 bcftools stats "$arquivo"
 
 #verificando o genoma de referencia
-if [ -e "$genoma_de_ref" ]; then
+if [ ! -e "$genoma_de_ref" ]; then
     echo "Genoma de referência não existe."
     exit 1
 fi
@@ -21,8 +21,15 @@ echo "  -> Genoma de referência identificado: $(basename "$genoma_de_ref")"
 
 #verifica se o arquivo .fai existe, caso não, ele é criado automaticamente
 if [ ! -f "${genoma_de_ref}.fai" ]; then
-    echo "  -> Índice .fai não encontrado. Gerando índice dinamicamente com samtools..."
-    samtools faidx "$REF_GENOME"
+    echo "  -> Índice .fai não encontrado. Gerando índice com samtools..."
+    samtools faidx "$genoma_de_ref"
+    echo "  -> Índice criado com sucesso!"
+fi
+
+#indexando o VCF se necessário
+if [ ! -f "${arquivo}.csi" ] && [ ! -f "${arquivo}.tbi" ]; then
+    echo "  -> Indexando VCF com bcftools..."
+    bcftools index "$arquivo"
     echo "  -> Índice criado com sucesso!"
 fi
 
@@ -34,7 +41,7 @@ bcftools norm \
   -m -any \
   -O z \
   -cs \
-  -f Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+  -f "$genoma_de_ref" \
   -o {"$arquivo"}.norm1.vcf.gz \
   {"$arquivo"}.exChr.vcf.gz
 
